@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "986116666119",
+    "project_id": "pagogoo",
+    "storage_bucket": "pagogoo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:986116666119:android:1483591d646606c70c4ba2",
+        "android_client_info": {
+          "package_name": "com.example.pago_goo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsPgwFL4mrwsLOqMy2cG57UfpO8gN9nWY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
