@@ -13,17 +13,32 @@ class AmortizacionScreen extends StatefulWidget {
 class _AmortizacionScreenState extends State<AmortizacionScreen> {
   final TextEditingController _montoController = TextEditingController();
   final TextEditingController _tasaController = TextEditingController();
-  final TextEditingController _plazoController = TextEditingController();
+  final TextEditingController _aniosController = TextEditingController();
+  final TextEditingController _mesesController = TextEditingController();
+  final TextEditingController _diasController = TextEditingController();
   
   String _tipoAmortizacion = 'Francés';
   String _frecuenciaCapitalizacion = 'Mensual';
+  String _tipoTasaInteres = 'Anual';
   List<Map<String, dynamic>> _tablaAmortizacion = [];
-  List<FlSpot> _graficoCapital = [];
+  List<FlSpot> _graficoAmortizacion = []; //  cambio Capital a _graficoAmortizacion
   List<FlSpot> _graficoIntereses = [];
   double _totalIntereses = 0;
   double _totalPagado = 0;
 
   final List<String> _frecuencias = [
+    'Diario',
+    'Semanal',
+    'Quincenal',
+    'Mensual',
+    'Bimestral',
+    'Trimestral',
+    'Cuatrimestral',
+    'Semestral',
+    'Anual'
+  ];
+
+  final List<String> _tiposTasaInteres = [
     'Diario',
     'Semanal',
     'Quincenal',
@@ -126,8 +141,58 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
             const SizedBox(height: 15),
             
             _buildInputField('Monto del Préstamo (\$)', _montoController, icon: LucideIcons.dollarSign),
-            _buildInputField('Tasa de Interés Anual (%)', _tasaController, icon: LucideIcons.percent),
-            _buildInputField('Plazo (Años)', _plazoController, icon: LucideIcons.calendar),
+            
+            const SizedBox(height: 15),
+            
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _buildInputField(
+                    'Tasa de Interés (%)',
+                    _tasaController,
+                    icon: LucideIcons.percent,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<String>(
+                    value: _tipoTasaInteres,
+                    decoration: InputDecoration(
+                      labelText: 'Periodicidad',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      filled: true,
+                      fillColor: Colors.blue.shade50,
+                    ),
+                    items: _tiposTasaInteres.map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (value) => setState(() => _tipoTasaInteres = value!),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 15),
+            
+            const Text(
+              'Duración del período',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _buildInputField('Años', _aniosController, icon: LucideIcons.calendar)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildInputField('Meses', _mesesController, icon: LucideIcons.calendar)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildInputField('Días', _diasController, icon: LucideIcons.clock)),
+              ],
+            ),
             
             const SizedBox(height: 15),
             
@@ -180,68 +245,142 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
     );
   }
 
-  int _obtenerPeriodosPorAno(String frecuencia) {
-    switch (frecuencia) {
-      case 'Diario': return 360;
-      case 'Semanal': return 52;
-      case 'Quincenal': return 24;
-      case 'Mensual': return 12;
-      case 'Bimestral': return 6;
-      case 'Trimestral': return 4;
-      case 'Cuatrimestral': return 3;
-      case 'Semestral': return 2;
-      case 'Anual': return 1;
-      default: return 12;
+  double _convertirTasaInteres(double tasa, String tipoTasa, String frecuenciaCapitalizacion) {
+    double tasaDiaria;
+    
+    switch (tipoTasa) {
+      case 'Diario':
+        tasaDiaria = tasa;
+        break;
+      case 'Semanal':
+        tasaDiaria = tasa / 7;
+        break;
+      case 'Quincenal':
+        tasaDiaria = tasa / 15;
+        break;
+      case 'Mensual':
+        tasaDiaria = tasa / 30;
+        break;
+      case 'Bimestral':
+        tasaDiaria = tasa / 60;
+        break;
+      case 'Trimestral':
+        tasaDiaria = tasa / 90;
+        break;
+      case 'Cuatrimestral':
+        tasaDiaria = tasa / 120;
+        break;
+      case 'Semestral':
+        tasaDiaria = tasa / 180;
+        break;
+      case 'Anual':
+        tasaDiaria = tasa / 360;
+        break;
+      default:
+        tasaDiaria = tasa / 30;
+    }
+    
+    switch (frecuenciaCapitalizacion) {
+      case 'Diario':
+        return tasaDiaria;
+      case 'Semanal':
+        return tasaDiaria * 7;
+      case 'Quincenal':
+        return tasaDiaria * 15;
+      case 'Mensual':
+        return tasaDiaria * 30;
+      case 'Bimestral':
+        return tasaDiaria * 60;
+      case 'Trimestral':
+        return tasaDiaria * 90;
+      case 'Cuatrimestral':
+        return tasaDiaria * 120;
+      case 'Semestral':
+        return tasaDiaria * 180;
+      case 'Anual':
+        return tasaDiaria * 360;
+      default:
+        return tasaDiaria * 30;
+    }
+  }
+
+  double _calcularPeriodosTotales(int anios, int meses, int dias) {
+    int totalDias = (anios * 360) + (meses * 30) + dias;
+    
+    switch (_frecuenciaCapitalizacion) {
+      case 'Diario': 
+        return totalDias.toDouble();
+      case 'Semanal': 
+        return (totalDias / 7).toDouble();
+      case 'Quincenal': 
+        return (totalDias / 15).toDouble();
+      case 'Mensual': 
+        return (totalDias / 30).toDouble();
+      case 'Bimestral': 
+        return (totalDias / 60).toDouble();
+      case 'Trimestral': 
+        return (totalDias / 90).toDouble();
+      case 'Cuatrimestral': 
+        return (totalDias / 120).toDouble();
+      case 'Semestral': 
+        return (totalDias / 180).toDouble();
+      case 'Anual': 
+        return (totalDias / 360).toDouble();
+      default: 
+        return (totalDias / 30).toDouble();
     }
   }
 
   void _calcularAmortizacion() {
     try {
       double P = double.parse(_montoController.text);
-      double tasaAnual = double.parse(_tasaController.text) / 100;
-      int anos = int.parse(_plazoController.text);
+      double tasa = double.parse(_tasaController.text) / 100;
       
-      // Calcular parámetros según frecuencia
-      int periodosPorAno = _obtenerPeriodosPorAno(_frecuenciaCapitalizacion);
-      double r = tasaAnual / periodosPorAno;
-      int n = anos * periodosPorAno;
+      int anios = _aniosController.text.isEmpty ? 0 : int.parse(_aniosController.text);
+      int meses = _mesesController.text.isEmpty ? 0 : int.parse(_mesesController.text);
+      int dias = _diasController.text.isEmpty ? 0 : int.parse(_diasController.text);
+      
+      if (P <= 0) throw Exception('El monto del préstamo debe ser positivo');
+      if (tasa < 0) throw Exception('La tasa de interés no puede ser negativa');
+      if (anios == 0 && meses == 0 && dias == 0) throw Exception('Ingrese al menos un período');
+
+      double r = _convertirTasaInteres(tasa, _tipoTasaInteres, _frecuenciaCapitalizacion);
+      double n = _calcularPeriodosTotales(anios, meses, dias);
       
       List<Map<String, dynamic>> tabla = [];
-      List<FlSpot> puntosCapital = [];
+      List<FlSpot> puntosAmortizacion = []; // Cambiado de puntosCapital a puntosAmortizacion
       List<FlSpot> puntosIntereses = [];
       
       double totalIntereses = 0;
       double saldo = P;
       
       if (_tipoAmortizacion == 'Francés') {
-        // Cálculo sistema francés
         double A = (P * r) / (1 - pow(1 + r, -n));
         
         for (int t = 1; t <= n; t++) {
           double intereses = saldo * r;
-          double capital = A - intereses;
-          saldo -= capital;
+          double amortizacion = A - intereses; // Cambiado de capital a amortizacion
+          saldo -= amortizacion;
           
           tabla.add({
             'periodo': t,
             'cuota': A,
-            'capital': capital,
+            'capital': amortizacion, // Cambiado a amortizacion (aunque se mantiene 'capital' como key)
             'intereses': intereses,
             'saldo': saldo,
           });
           
-          puntosCapital.add(FlSpot(t.toDouble(), capital));
+          puntosAmortizacion.add(FlSpot(t.toDouble(), amortizacion));
           puntosIntereses.add(FlSpot(t.toDouble(), intereses));
           totalIntereses += intereses;
         }
       } 
       else if (_tipoAmortizacion == 'Alemán') {
-        // Cálculo sistema alemán (CORREGIDO)
-        double A = P / n;  // Amortización fija
+        double A = P / n;
         
         for (int t = 1; t <= n; t++) {
-          double I_t = saldo * r;  // Intereses del período
-          double C_t = A + I_t;    // Cuota total del período
+          double I_t = saldo * r;
+          double C_t = A + I_t;
           
           tabla.add({
             'periodo': t,
@@ -251,29 +390,28 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
             'saldo': saldo,
           });
           
-          puntosCapital.add(FlSpot(t.toDouble(), A));
+          puntosAmortizacion.add(FlSpot(t.toDouble(), A));
           puntosIntereses.add(FlSpot(t.toDouble(), I_t));
           totalIntereses += I_t;
-          saldo -= A;  // Reducir el saldo por la amortización fija
+          saldo -= A;
         }
       } 
       else if (_tipoAmortizacion == 'Americano') {
-        // Cálculo sistema americano
         double interesesPeriodicos = P * r;
         
         for (int t = 1; t <= n; t++) {
-          double capital = (t == n) ? P : 0;
+          double amortizacion = (t == n) ? P : 0; // Cambiado de capital a amortizacion
           double cuota = (t == n) ? P + interesesPeriodicos : interesesPeriodicos;
           
           tabla.add({
             'periodo': t,
             'cuota': cuota,
-            'capital': capital,
+            'capital': amortizacion, // Cambiado a amortizacion
             'intereses': interesesPeriodicos,
             'saldo': (t == n) ? 0 : P,
           });
           
-          puntosCapital.add(FlSpot(t.toDouble(), capital));
+          puntosAmortizacion.add(FlSpot(t.toDouble(), amortizacion));
           puntosIntereses.add(FlSpot(t.toDouble(), interesesPeriodicos));
           totalIntereses += interesesPeriodicos;
         }
@@ -281,7 +419,7 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
       
       setState(() {
         _tablaAmortizacion = tabla;
-        _graficoCapital = puntosCapital;
+        _graficoAmortizacion = puntosAmortizacion; // Cambiado de _graficoCapital
         _graficoIntereses = puntosIntereses;
         _totalIntereses = totalIntereses;
         _totalPagado = P + totalIntereses;
@@ -326,8 +464,14 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildResultItem('Cuota Promedio', '\$${(_totalPagado / _tablaAmortizacion.length).toStringAsFixed(2)}'),
-                _buildResultItem('Monto Préstamo', '\$${_montoController.text}'),
+                _buildResultItem(
+                  'Cuota Promedio', 
+                  '\$${(_totalPagado / _tablaAmortizacion.length).toStringAsFixed(2)}'
+                ),
+                _buildResultItem(
+                  'Monto Préstamo', 
+                  '\$${_montoController.text}'
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -345,12 +489,11 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
   }
 
   Widget _buildGraficoAmortizacion() {
-    // Determinar el valor máximo para el eje Y
     double maxYValue = 0;
-    if (_graficoCapital.isNotEmpty && _graficoIntereses.isNotEmpty) {
-      final maxCapital = _graficoCapital.map((spot) => spot.y).reduce(max);
+    if (_graficoAmortizacion.isNotEmpty && _graficoIntereses.isNotEmpty) {
+      final maxAmortizacion = _graficoAmortizacion.map((spot) => spot.y).reduce(max);
       final maxInteres = _graficoIntereses.map((spot) => spot.y).reduce(max);
-      maxYValue = (maxCapital + maxInteres) * 1.2; // 20% más alto que el máximo
+      maxYValue = (maxAmortizacion + maxInteres) * 1.2;
     }
 
     return Card(
@@ -441,11 +584,10 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
                   minY: 0,
                   maxY: maxYValue,
                   lineBarsData: [
-                    // Línea de intereses (naranja)
                     LineChartBarData(
                       spots: _graficoIntereses,
                       isCurved: true,
-                      color: const Color(0xFFFFA726), // Naranja claro
+                      color: const Color(0xFFFFA726),
                       barWidth: 3,
                       isStrokeCapRound: true,
                       belowBarData: BarAreaData(
@@ -464,11 +606,10 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
                         },
                       ),
                     ),
-                    // Línea de capital (azul)
                     LineChartBarData(
-                      spots: _graficoCapital,
+                      spots: _graficoAmortizacion, // Cambiado de _graficoCapital
                       isCurved: true,
-                      color: const Color(0xFF42A5F5), // Azul claro
+                      color: const Color(0xFF42A5F5),
                       barWidth: 3,
                       isStrokeCapRound: true,
                       belowBarData: BarAreaData(
@@ -495,7 +636,7 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
                         return touchedSpots.map((spot) {
                           final isInteres = spot.barIndex == 0;
                           return LineTooltipItem(
-                            '${isInteres ? 'Interés' : 'Capital'} - Periodo ${spot.x.toInt()}\n'
+                            '${isInteres ? 'Interés' : 'Amortización'} - Periodo ${spot.x.toInt()}\n'
                             'Monto: \$${spot.y.toStringAsFixed(2)}',
                             TextStyle(
                               color: Colors.white,
@@ -516,7 +657,7 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
               children: [
                 _buildLegendItem(const Color(0xFFFFA726), 'Intereses'),
                 const SizedBox(width: 20),
-                _buildLegendItem(const Color(0xFF42A5F5), 'Capital'),
+                _buildLegendItem(const Color(0xFF42A5F5), 'Amortización'), // Cambiado de "Capital"
               ],
             ),
           ],
@@ -586,7 +727,7 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
                     ),
                     DataColumn(
                       label: Text(
-                        'Capital',
+                        'Amortización', // Cambiado de "Capital"
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.blueAccent,
@@ -640,7 +781,7 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
                           Text(
                             '\$${item['capital'].toStringAsFixed(2)}',
                             style: const TextStyle(
-                              color: Color(0xFF42A5F5), // Azul claro para capital
+                              color: Color(0xFF42A5F5),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -649,7 +790,7 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
                           Text(
                             '\$${item['intereses'].toStringAsFixed(2)}',
                             style: const TextStyle(
-                              color: Color(0xFFFFA726), // Naranja para intereses
+                              color: Color(0xFFFFA726),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -820,10 +961,12 @@ class _AmortizacionScreenState extends State<AmortizacionScreen> {
   void _limpiarCampos() {
     _montoController.clear();
     _tasaController.clear();
-    _plazoController.clear();
+    _aniosController.clear();
+    _mesesController.clear();
+    _diasController.clear();
     setState(() {
       _tablaAmortizacion = [];
-      _graficoCapital = [];
+      _graficoAmortizacion = []; // Cambiado de _graficoCapital
       _graficoIntereses = [];
       _totalIntereses = 0;
       _totalPagado = 0;

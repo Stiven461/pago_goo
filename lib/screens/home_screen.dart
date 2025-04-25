@@ -4,6 +4,7 @@ import 'package:pago_goo/screens/anualidades_screen.dart';
 import 'package:pago_goo/screens/compuesto_interes_screen.dart';
 import 'package:pago_goo/screens/interest_rate_screen.dart';
 import 'package:pago_goo/screens/login_screen.dart';
+import 'package:pago_goo/screens/prestamos_screen.dart';
 import 'package:pago_goo/screens/simple_interes_screen.dart';
 import 'package:pago_goo/screens/gradientes_screen.dart';
 import 'package:pago_goo/screens/amortizacion_screen.dart';
@@ -73,6 +74,13 @@ class HomeScreen extends StatelessWidget {
                   [
                     {'title': 'Capitalización', 'icon': Icons.account_balance, 'screen': const CapitalizacionScreen()},
                     {'title': 'TIR', 'icon': Icons.bar_chart, 'screen': const TIRScreen()},
+                  ],
+                ),
+                // boton prestamos
+                _buildButtonRow(
+                  context,
+                  [
+                    {'title': 'Préstamos', 'icon': Icons.credit_card, 'screen': const PrestamosScreen()},
                   ],
                 ),
                 const SizedBox(height: 30),
