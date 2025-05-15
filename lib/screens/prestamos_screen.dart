@@ -281,6 +281,32 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
       }
     });
   }
+
+  void _rechazarSolicitud(int index) {
+    final solicitud = solicitudesPrestamos[index];
+    
+    // Registrar transacción de rechazo
+    final transaccion = {
+      'tipo': 'rechazo',
+      'monto': solicitud['monto'],
+      'fecha': DateTime.now(),
+      'descripcion': 'Préstamo rechazado #${solicitud['id']}',
+      'saldoPosterior': saldoDisponible,
+    };
+    
+    setState(() {
+      solicitudesPrestamos[index]['estado'] = 'rechazado';
+      historialTransacciones.insert(0, transaccion);
+      
+      // Actualizar la transacción de solicitud en el historial
+      final solicitudIndex = historialTransacciones.indexWhere(
+        (t) => t['descripcion'] == 'Solicitud préstamo #${solicitud['id']}');
+      
+      if (solicitudIndex != -1) {
+        historialTransacciones[solicitudIndex]['estado'] = 'rechazada';
+      }
+    });
+  }
   
   // Métodos de cálculo (implementaciones básicas)
   double _calcularInteresSimple(double monto, double tasa, int plazo) {
@@ -368,6 +394,7 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Bienvenido, $nombreUsuario',
@@ -386,12 +413,15 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
                 ),
               ),
               const SizedBox(height: 5),
-              Text(
-                '\$${NumberFormat('#,###').format(saldoDisponible)}',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '\$${NumberFormat('#,###').format(saldoDisponible)}',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -402,161 +432,145 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
   }
   
   Widget _buildSolicitudesPrestamos() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Solicitudes de Préstamo',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            ElevatedButton.icon(
-              icon: const Icon(LucideIcons.plus, size: 16),
-              label: const Text('Nueva Solicitud'),
-              onPressed: () => setState(() => mostrarFormularioSolicitud = true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-        
-        if (mostrarFormularioSolicitud) ...[
-          _buildFormularioSolicitud(),
-          const SizedBox(height: 15),
-        ],
-        
-        if (solicitudesPrestamos.isEmpty)
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(LucideIcons.fileSearch, size: 40, color: Colors.grey.shade400),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'No hay solicitudes de préstamo',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Solicitudes de Préstamo',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-          )
-        else
-          ...List.generate(solicitudesPrestamos.length, (index) {
-            final solicitud = solicitudesPrestamos[index];
-            return Card(
+              ElevatedButton.icon(
+                icon: const Icon(LucideIcons.plus, size: 16),
+                label: const Text('N. Solicitud'),
+                onPressed: () => setState(() => mostrarFormularioSolicitud = true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          
+          if (mostrarFormularioSolicitud) ...[
+            _buildFormularioSolicitud(),
+            const SizedBox(height: 15),
+          ],
+          
+          if (solicitudesPrestamos.isEmpty)
+            Card(
               elevation: 2,
-              margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Préstamo #${solicitud['id']}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Chip(
-                          label: Text(
-                            solicitud['estado'] == 'pendiente' ? 'Pendiente' : 'Aprobado',
-                            style: TextStyle(
-                              color: solicitud['estado'] == 'pendiente' 
-                                  ? Colors.orange.shade800 
-                                  : Colors.green.shade800,
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(LucideIcons.fileSearch, size: 40, color: Colors.grey.shade400),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'No hay solicitudes de préstamo',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            ...List.generate(solicitudesPrestamos.length, (index) {
+              final solicitud = solicitudesPrestamos[index];
+              final isPendiente = solicitud['estado'] == 'pendiente';
+              
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Préstamo #${solicitud['id']}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          backgroundColor: solicitud['estado'] == 'pendiente' 
-                              ? Colors.orange.shade100 
-                              : Colors.green.shade100,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Tipo de cálculo:', style: TextStyle(color: Colors.grey)),
-                        Text(
-                          solicitud['tipoCalculo'] ?? 'No especificado',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Periodicidad:', style: TextStyle(color: Colors.grey)),
-                        Text(
-                          solicitud['periodicidad'] ?? 'No especificada',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Monto:', style: TextStyle(color: Colors.grey)),
-                        Text(
-                          '\$${NumberFormat('#,###').format(solicitud['monto'])}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Plazo:', style: TextStyle(color: Colors.grey)),
-                        Text(
-                          '${solicitud['plazoMeses']} meses ${solicitud['plazoDias'] > 0 ? '${solicitud['plazoDias']} días' : ''}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Tasa:', style: TextStyle(color: Colors.grey)),
-                        Text(
-                          '${solicitud['tasa']}% ${solicitud['periodicidad']?.toString().toLowerCase() ?? ''}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (solicitud['estado'] == 'pendiente')
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => _aprobarSolicitud(index),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade600,
-                            foregroundColor: Colors.white,
+                          Chip(
+                            label: Text(
+                              solicitud['estado'] == 'pendiente' 
+                                ? 'Pendiente' 
+                                : solicitud['estado'] == 'aprobado' 
+                                  ? 'Aprobado' 
+                                  : 'Rechazado',
+                              style: TextStyle(
+                                color: solicitud['estado'] == 'pendiente' 
+                                    ? Colors.orange.shade800 
+                                    : solicitud['estado'] == 'aprobado'
+                                      ? Colors.green.shade800
+                                      : Colors.red.shade800,
+                              ),
+                            ),
+                            backgroundColor: solicitud['estado'] == 'pendiente' 
+                                ? Colors.orange.shade100 
+                                : solicitud['estado'] == 'aprobado'
+                                  ? Colors.green.shade100
+                                  : Colors.red.shade100,
                           ),
-                          child: const Text('Aprobar Préstamo'),
-                        ),
+                        ],
                       ),
-                  ],
+                      const SizedBox(height: 8),
+                      _buildInfoRow('Tipo de cálculo:', solicitud['tipoCalculo'] ?? 'No especificado'),
+                      _buildInfoRow('Periodicidad:', solicitud['periodicidad'] ?? 'No especificada'),
+                      _buildInfoRow('Monto:', '\$${NumberFormat('#,###').format(solicitud['monto'])}'),
+                      _buildInfoRow('Plazo:', '${solicitud['plazoMeses']} meses ${solicitud['plazoDias'] > 0 ? '${solicitud['plazoDias']} días' : ''}'),
+                      _buildInfoRow('Tasa:', '${solicitud['tasa']}% ${solicitud['periodicidad']?.toString().toLowerCase() ?? ''}'),
+                      const SizedBox(height: 10),
+                      if (isPendiente)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => _aprobarSolicitud(index),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade600,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Aprobar Préstamo'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => _rechazarSolicitud(index),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red.shade600,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Rechazar Préstamo'),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }),
-      ],
+              );
+            }),
+        ],
+      ),
     );
   }
   
@@ -603,7 +617,7 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
             ),
             const SizedBox(height: 10),
             
-            // Tasa de interés y periodicidad en la misma fila (CAMBIO IMPLEMENTADO)
+            // Tasa de interés y periodicidad en la misma fila
             Row(
               children: [
                 Expanded(
@@ -746,91 +760,96 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
   }
   
   Widget _buildPrestamosActivos() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Préstamos Activos',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
-        
-        if (prestamosActivos.isEmpty)
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(LucideIcons.wallet, size: 40, color: Colors.grey.shade400),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'No tienes préstamos activos',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Préstamos Activos',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
-          )
-        else
-          ...List.generate(prestamosActivos.length, (index) {
-            final prestamo = prestamosActivos[index];
-            return Card(
+          ),
+          const SizedBox(height: 10),
+          
+          if (prestamosActivos.isEmpty)
+            Card(
               elevation: 2,
-              margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Préstamo #${prestamo['id']}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Chip(
-                          label: const Text('Activo'),
-                          backgroundColor: Colors.blue.shade100,
-                          labelStyle: TextStyle(color: Colors.blue.shade800),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    _buildInfoRow('Tipo de cálculo:', prestamo['tipoCalculo'] ?? 'No especificado'),
-                    _buildInfoRow('Periodicidad:', prestamo['periodicidad'] ?? 'No especificada'),
-                    _buildInfoRow('Monto inicial:', '\$${NumberFormat('#,###').format(prestamo['monto'])}'),
-                    _buildInfoRow('Saldo pendiente:', '\$${NumberFormat('#,###').format(prestamo['saldoPendiente'])}'),
-                    _buildInfoRow('Plazo:', '${prestamo['plazoMeses']} meses ${prestamo['plazoDias'] > 0 ? '${prestamo['plazoDias']} días' : ''}'),
-                    _buildInfoRow('Tasa interés:', '${prestamo['tasa']}% ${prestamo['periodicidad']?.toString().toLowerCase() ?? ''}'),
-                    _buildInfoRow('Cuota mensual:', '\$${NumberFormat('#,###').format(prestamo['cuota'])}'),
-                    const SizedBox(height: 15),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => _pagarCuota(index),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Pagar Cuota'),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(LucideIcons.wallet, size: 40, color: Colors.grey.shade400),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'No tienes préstamos activos',
+                        style: TextStyle(color: Colors.grey),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            );
-          }),
-      ],
+            )
+          else
+            ...List.generate(prestamosActivos.length, (index) {
+              final prestamo = prestamosActivos[index];
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Préstamo #${prestamo['id']}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Chip(
+                            label: const Text('Activo'),
+                            backgroundColor: Colors.blue.shade100,
+                            labelStyle: TextStyle(color: Colors.blue.shade800),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+                      _buildInfoRow('Tipo de cálculo:', prestamo['tipoCalculo'] ?? 'No especificado'),
+                      _buildInfoRow('Periodicidad:', prestamo['periodicidad'] ?? 'No especificada'),
+                      _buildInfoRow('Monto inicial:', '\$${NumberFormat('#,###').format(prestamo['monto'])}'),
+                      _buildInfoRow('Saldo pendiente:', '\$${NumberFormat('#,###').format(prestamo['saldoPendiente'])}'),
+                      _buildInfoRow('Plazo:', '${prestamo['plazoMeses']} meses ${prestamo['plazoDias'] > 0 ? '${prestamo['plazoDias']} días' : ''}'),
+                      _buildInfoRow('Tasa interés:', '${prestamo['tasa']}% ${prestamo['periodicidad']?.toString().toLowerCase() ?? ''}'),
+                      _buildInfoRow('Cuota mensual:', '\$${NumberFormat('#,###').format(prestamo['cuota'])}'),
+                      const SizedBox(height: 15),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => _pagarCuota(index),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Pagar Cuota'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
     );
   }
   
@@ -840,99 +859,134 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Flexible(
+            child: Text(
+              label, 
+              style: const TextStyle(color: Colors.grey),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value, 
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
   }
   
   Widget _buildHistorialTransacciones() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Historial de Transacciones',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
-        
-        if (historialTransacciones.isEmpty)
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(LucideIcons.history, size: 40, color: Colors.grey.shade400),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'No hay transacciones registradas',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Historial de Transacciones',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
-          )
-        else
-          ...List.generate(historialTransacciones.length, (index) {
-            final transaccion = historialTransacciones[index];
-            final isIngreso = transaccion['tipo'] == 'ingreso';
-            final isEgreso = transaccion['tipo'] == 'egreso';
-            final isSolicitud = transaccion['tipo'] == 'solicitud';
-            
-            Color color;
-            IconData icono;
-            
-            if (isIngreso) {
-              color = Colors.green;
-              icono = LucideIcons.arrowDownCircle;
-            } else if (isEgreso) {
-              color = Colors.red;
-              icono = LucideIcons.arrowUpCircle;
-            } else {
-              color = Colors.orange;
-              icono = LucideIcons.fileText;
-            }
-            
-            return Card(
+          ),
+          const SizedBox(height: 10),
+          
+          if (historialTransacciones.isEmpty)
+            Card(
               elevation: 2,
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: Icon(icono, color: color),
-                title: Text(transaccion['descripcion']),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(DateFormat('dd/MM/yyyy - HH:mm').format(transaccion['fecha'])),
-                    if (transaccion['saldoPosterior'] != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Saldo posterior: \$${NumberFormat('#,###').format(transaccion['saldoPosterior'])}',
-                        style: const TextStyle(fontSize: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(LucideIcons.history, size: 40, color: Colors.grey.shade400),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'No hay transacciones registradas',
+                        style: TextStyle(color: Colors.grey),
                       ),
                     ],
-                  ],
-                ),
-                trailing: Text(
-                  isSolicitud 
-                    ? 'Solicitud' 
-                    : '\$${NumberFormat('#,###').format(transaccion['monto'])}',
-                  style: TextStyle(
-                    color: isSolicitud ? Colors.grey : color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: isSolicitud ? 12 : 16,
                   ),
                 ),
               ),
-            );
-          }),
-      ],
+            )
+          else
+            ...List.generate(historialTransacciones.length, (index) {
+              final transaccion = historialTransacciones[index];
+              final isIngreso = transaccion['tipo'] == 'ingreso';
+              final isEgreso = transaccion['tipo'] == 'egreso';
+              final isSolicitud = transaccion['tipo'] == 'solicitud';
+              final isRechazo = transaccion['tipo'] == 'rechazo' || 
+                                (transaccion['estado'] == 'rechazada');
+              
+              Color color;
+              IconData icono;
+              
+              if (isIngreso) {
+                color = Colors.green;
+                icono = LucideIcons.arrowDownCircle;
+              } else if (isEgreso) {
+                color = Colors.red;
+                icono = LucideIcons.arrowUpCircle;
+              } else if (isRechazo) {
+                color = Colors.red.shade800;
+                icono = LucideIcons.xCircle;
+              } else if (isSolicitud) {
+                color = Colors.orange;
+                icono = LucideIcons.fileText;
+              } else {
+                color = Colors.grey;
+                icono = LucideIcons.history;
+              }
+              
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: Icon(icono, color: color),
+                  title: Text(
+                    transaccion['descripcion'],
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(DateFormat('dd/MM/yyyy - HH:mm').format(transaccion['fecha'])),
+                      if (transaccion['saldoPosterior'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Saldo posterior: \$${NumberFormat('#,###').format(transaccion['saldoPosterior'])}',
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                  trailing: isRechazo
+                    ? const Text(
+                        'Rechazado',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      )
+                    : Text(
+                        isSolicitud 
+                          ? 'Solicitud' 
+                          : '\$${NumberFormat('#,###').format(transaccion['monto'])}',
+                        style: TextStyle(
+                          color: isSolicitud ? Colors.grey : color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: isSolicitud ? 12 : 16,
+                        ),
+                      ),
+                ),
+              );
+            }),
+        ],
+      ),
     );
   }
   
@@ -945,31 +999,47 @@ class _PrestamosScreenState extends State<PrestamosScreen> {
         elevation: 0,
         centerTitle: true,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)],
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              _buildPanelSaldo(),
-              const SizedBox(height: 20),
-              IndexedStack(
-                index: selectedTabIndex,
-                children: [
-                  _buildSolicitudesPrestamos(),
-                  _buildPrestamosActivos(),
-                  _buildHistorialTransacciones(),
-                ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
               ),
-            ],
-          ),
-        ),
+              child: IntrinsicHeight(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)],
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildPanelSaldo(),
+                        const SizedBox(height: 20),
+                        Expanded(
+                          child: IndexedStack(
+                            index: selectedTabIndex,
+                            children: [
+                              _buildSolicitudesPrestamos(),
+                              _buildPrestamosActivos(),
+                              _buildHistorialTransacciones(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: selectedTabIndex,

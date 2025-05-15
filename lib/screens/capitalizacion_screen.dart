@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'dart:math';
+import 'package:flutter/services.dart';
 
 class CapitalizacionScreen extends StatefulWidget {
   const CapitalizacionScreen({super.key});
@@ -23,6 +24,10 @@ class _CapitalizacionScreenState extends State<CapitalizacionScreen> {
   String _tipoCapitalizacion = 'Simple';
   String _frecuenciaPeriodica = 'Mensual';
   
+  List<Map<String, dynamic>> _tablaCapitalizacion = [];
+  double _interesGenerado = 0;
+  double _montoFinal = 0;
+
   final List<String> _tiposCapitalizacion = [
     'Simple',
     'Compuesta',
@@ -258,6 +263,13 @@ class _CapitalizacionScreenState extends State<CapitalizacionScreen> {
                 ),
               ],
             ),
+
+            if (_tablaCapitalizacion.isNotEmpty) ...[
+              const SizedBox(height: 30),
+              _buildResumenResultados(),
+              const SizedBox(height: 20),
+              _buildTablaCapitalizacion(),
+            ],
           ],
         ),
       ),
@@ -279,45 +291,77 @@ class _CapitalizacionScreenState extends State<CapitalizacionScreen> {
         throw Exception("Ingrese valores válidos");
       }
 
+      // Limpiar tabla anterior
+      _tablaCapitalizacion = [];
+      
       // Convertir todo a años decimales
-      double t = anios + (meses / 12) + (dias / 360);
+      double t = anios + (meses / 12) + (dias / 365.25);
+      double t0 = difAnios + (difMeses / 12) + (difDias / 365.25);
       double M = 0;
+      double interesAcumulado = 0;
+      int periodosPorAno = _tipoCapitalizacion == 'Simple' ? 1 : _obtenerPeriodosPorAno(_frecuenciaPeriodica);
 
-      switch (_tipoCapitalizacion) {
-        case 'Simple':
-          M = C * (1 + (r / 100) * t);
-          break;
-        case 'Compuesta':
-          int n = _obtenerPeriodosPorAno(_frecuenciaPeriodica);
-          M = C * pow(1 + (r / 100) / n, n * t);
-          break;
-        case 'Continua':
-          M = C * exp((r / 100) * t);
-          break;
-        case 'Periódica':
-          int n = _obtenerPeriodosPorAno(_frecuenciaPeriodica);
-          M = C * pow(1 + (r / 100) / n, n * t);
-          break;
-        case 'Anticipada':
-          int n = _obtenerPeriodosPorAno(_frecuenciaPeriodica);
-          M = C * pow(1 + (r / 100) / n, n * (t + 1));
-          break;
-        case 'Diferida':
-          double t0 = difAnios + (difMeses / 12) + (difDias / 360);
-          M = C * pow(1 + (r / 100), t - t0);
-          break;
+      // Calcular número total de periodos
+      int totalPeriodos = (t * periodosPorAno).ceil();
+      if (_tipoCapitalizacion == 'Diferida') {
+        totalPeriodos = ((t - t0) * periodosPorAno).ceil();
+      }
+
+      // Generar tabla periodo por periodo
+      for (int periodo = 1; periodo <= totalPeriodos; periodo++) {
+        double tiempoTranscurrido = periodo / periodosPorAno;
+        double capitalPeriodo = C;
+        double interesPeriodo = 0;
+        
+        if (_tipoCapitalizacion == 'Simple') {
+          interesPeriodo = C * (r / 100) * tiempoTranscurrido;
+          M = C + interesPeriodo;
+        } 
+        else if (_tipoCapitalizacion == 'Compuesta' || _tipoCapitalizacion == 'Periódica') {
+          M = C * pow(1 + (r / 100) / periodosPorAno, periodo);
+          interesPeriodo = M - capitalPeriodo;
+        }
+        else if (_tipoCapitalizacion == 'Continua') {
+          M = C * exp((r / 100) * tiempoTranscurrido);
+          interesPeriodo = M - capitalPeriodo;
+        }
+        else if (_tipoCapitalizacion == 'Anticipada') {
+          M = C * pow(1 + (r / 100) / periodosPorAno, periodo + 1);
+          interesPeriodo = M - capitalPeriodo;
+        }
+        else if (_tipoCapitalizacion == 'Diferida' && tiempoTranscurrido > t0) {
+          M = C * pow(1 + (r / 100), tiempoTranscurrido - t0);
+          interesPeriodo = M - capitalPeriodo;
+        }
+
+        interesAcumulado += interesPeriodo;
+        
+        _tablaCapitalizacion.add({
+          'periodo': periodo,
+          'capital': C,
+          'interes': interesPeriodo,
+          'interesAcumulado': interesAcumulado,
+          'monto': M,
+        });
       }
 
       setState(() {
+        _montoFinal = M;
+        _interesGenerado = interesAcumulado;
         _resultadoController.text = M.toStringAsFixed(2);
       });
 
-      //
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
         ),
       );
     }
@@ -348,6 +392,200 @@ class _CapitalizacionScreenState extends State<CapitalizacionScreen> {
     _diferimientoAniosController.clear();
     _diferimientoMesesController.clear();
     _diferimientoDiasController.clear();
+    setState(() {
+      _tablaCapitalizacion = [];
+      _interesGenerado = 0;
+      _montoFinal = 0;
+    });
+  }
+
+  Widget _buildResumenResultados() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.blue.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Text(
+              'RESUMEN DE CAPITALIZACIÓN ${_tipoCapitalizacion.toUpperCase()}',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.blueAccent,
+              ),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildResultItem('Capital Inicial', '\$${_capitalController.text}'),
+                _buildResultItem('Interés Generado', '\$${_interesGenerado.toStringAsFixed(2)}'),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildResultItem('Monto Final', '\$${_montoFinal.toStringAsFixed(2)}'),
+                _buildResultItem('Periodos', '${_tablaCapitalizacion.length}'),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Frecuencia: $_frecuenciaPeriodica',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.blueGrey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTablaCapitalizacion() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'DETALLE POR PERÍODO - ${_tipoCapitalizacion.toUpperCase()}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.blueAccent,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 15),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 2,
+                blurRadius: 5,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                color: Colors.white,
+                child: DataTable(
+                  columnSpacing: 20,
+                  dataRowHeight: 40,
+                  headingRowHeight: 45,
+                  headingRowColor: MaterialStateProperty.resolveWith<Color>(
+                    (Set<MaterialState> states) => Colors.blueAccent.withOpacity(0.1),
+                  ),
+                  columns: const [
+                    DataColumn(
+                      label: Text(
+                        'Período',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'Capital',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                      numeric: true,
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'Interés',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                      numeric: true,
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'Interés Acum.',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                      numeric: true,
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'Monto',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                      numeric: true,
+                    ),
+                  ],
+                  rows: _tablaCapitalizacion.map((item) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(item['periodo'].toString())),
+                        DataCell(Text('\$${item['capital'].toStringAsFixed(2)}')),
+                        DataCell(Text(
+                          '\$${item['interes'].toStringAsFixed(2)}',
+                          style: const TextStyle(color: Color(0xFFFFA726)),
+                        )),
+                        DataCell(Text('\$${item['interesAcumulado'].toStringAsFixed(2)}')),
+                        DataCell(Text(
+                          '\$${item['monto'].toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Color(0xFF4CAF50),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )),
+                      ],
+                      color: MaterialStateProperty.resolveWith<Color>(
+                        (Set<MaterialState> states) {
+                          return item['periodo'] % 2 == 0 
+                              ? Colors.blue.shade50.withOpacity(0.3)
+                              : Colors.transparent;
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 14, color: Colors.blueGrey),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
   }
 
   Widget _buildSectionCard({
@@ -397,6 +635,9 @@ class _CapitalizacionScreenState extends State<CapitalizacionScreen> {
       child: TextField(
         controller: controller,
         readOnly: readOnly,
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+        ],
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(color: Colors.blueGrey.shade700),
